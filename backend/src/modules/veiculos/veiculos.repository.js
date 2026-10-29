@@ -22,6 +22,18 @@ export function buscarPorId(id) {
   return prisma.veiculo.findUnique({ where: { id }, select: CAMPOS_PUBLICOS });
 }
 
+export function buscarPorPlacaComCliente(placa) {
+  return prisma.veiculo.findUnique({
+    where: { placa },
+    select: {
+      ...CAMPOS_PUBLICOS,
+      cliente: {
+        select: { id: true, nome: true, cpf: true, telefone: true, email: true, ativo: true },
+      },
+    },
+  });
+}
+
 export function listarPorCliente(clienteId) {
   return prisma.veiculo.findMany({
     where: { clienteId },

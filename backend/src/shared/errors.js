@@ -33,3 +33,22 @@ export class AcessoNegadoError extends AppError {
     this.name = 'AcessoNegadoError';
   }
 }
+
+// Usado quando a ação pode prosseguir, mas o usuário precisa confirmar um ou
+// mais avisos antes (ex.: OS em andamento, km menor, preço de venda abaixo do
+// custo). O service recebe de volta um `ignorarAvisos` para seguir em frente.
+export class AvisosConfirmacaoError extends AppError {
+  constructor(avisos, message = 'Confirme os avisos antes de continuar.') {
+    super(message, 409);
+    this.name = 'AvisosConfirmacaoError';
+    this.avisos = avisos;
+  }
+}
+
+export class HorarioLotadoError extends AppError {
+  constructor(sugestoes) {
+    super('Não há boxes disponíveis neste horário.', 409);
+    this.name = 'HorarioLotadoError';
+    this.sugestoes = sugestoes;
+  }
+}

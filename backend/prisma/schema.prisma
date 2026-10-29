@@ -30,6 +30,18 @@ enum TipoItemOrcamento {
   MAO_DE_OBRA
 }
 
+enum DecisaoOrcamento {
+  APROVADO
+  APROVADO_PARCIAL
+  REPROVADO
+}
+
+enum MeioContatoDecisao {
+  TELEFONE
+  WHATSAPP
+  PRESENCIAL
+}
+
 enum StatusAgendamento {
   AGENDADO
   REAGENDADO
@@ -40,6 +52,16 @@ enum StatusAgendamento {
 enum TipoMovimentacaoEstoque {
   ENTRADA
   SAIDA
+}
+
+enum CanalNotificacao {
+  EMAIL
+  WHATSAPP
+}
+
+enum StatusNotificacao {
+  ENVIADA
+  FALHA
 }
 
 enum TipoConta {
@@ -140,6 +162,14 @@ model OrdemServico {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  // Decisão do cliente sobre o orçamento (PB12/RF09). Guardada direto na OS
+  // porque só existe uma decisão corrente por orçamento — o histórico de
+  // status (HistoricoStatusOS) já registra a transição em si.
+  decisaoOrcamento    DecisaoOrcamento?
+  meioContatoDecisao  MeioContatoDecisao?
+  motivoReprovacao    String?
+  decisaoRegistradaEm DateTime?
+
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id])
 
@@ -157,6 +187,7 @@ model OrdemServico {
   historicosStatus     HistoricoStatusOS[]
   movimentacoesEstoque MovimentacaoEstoque[]
   contas               Conta[]
+  notificacoes         Notificacao[]
 
   @@index([status])
   @@index([veiculoId])
@@ -257,8 +288,12 @@ model MovimentacaoEstoque {
 model Conta {
   id             String          @id @default(cuid())
   tipo           TipoConta
+  // Só preenchido em contas a pagar lançadas manualmente (PB19); contas a
+  // receber geradas pelo encerramento de uma OS não têm fornecedor.
+  fornecedor     String?
   descricao      String
   valor          Decimal
+  valorPago      Decimal?
   vencimento     DateTime
   status         StatusConta     @default(ABERTA)
   formaPagamento FormaPagamento?
@@ -285,6 +320,24 @@ model Parcela {
 
   contaId String
   conta   Conta  @relation(fields: [contaId], references: [id])
+}
+
+// PB14/RF11: registro de cada mensagem enviada ao cliente (provedor real ou
+// simulado), para auditoria simples de notificações e para o provedor
+// "simulado" ter onde gravar além do log.
+model Notificacao {
+  id           String            @id @default(cuid())
+  canal        CanalNotificacao
+  destinatario String
+  mensagem     String
+  status       StatusNotificacao
+  erro         String?
+  enviadaEm    DateTime          @default(now())
+
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([ordemServicoId])
 }
 
 // Tabela pronta como ponto de extensão do RNF12 (auditoria). Ainda não há

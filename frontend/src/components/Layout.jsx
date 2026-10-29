@@ -4,6 +4,13 @@ import { useAuth } from '../contexts/authContextBase.js';
 const ITENS_MENU = [
   { to: '/', label: 'Início', perfis: null },
   { to: '/clientes', label: 'Clientes', perfis: ['RECEPCIONISTA', 'ADMINISTRADOR'] },
+  { to: '/ordens/abrir', label: 'Abrir OS', perfis: ['RECEPCIONISTA', 'ADMINISTRADOR'] },
+  { to: '/ordens/painel', label: 'Painel de OS', perfis: null },
+  { to: '/ordens/historico', label: 'Histórico de OS', perfis: null },
+  { to: '/agenda', label: 'Agenda', perfis: ['RECEPCIONISTA', 'ADMINISTRADOR'] },
+  { to: '/pecas', label: 'Peças', perfis: null },
+  { to: '/financeiro', label: 'Financeiro', perfis: ['ADMINISTRADOR'] },
+  { to: '/relatorios', label: 'Relatórios', perfis: ['ADMINISTRADOR'] },
   { to: '/funcionarios', label: 'Funcionários', perfis: ['ADMINISTRADOR'] },
 ];
 

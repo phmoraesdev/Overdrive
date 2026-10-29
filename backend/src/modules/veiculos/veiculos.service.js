@@ -15,6 +15,18 @@ export async function buscarPorId(id) {
   return veiculo;
 }
 
+// Usado pelo módulo de ordens de serviço para localizar o veículo e o
+// cliente dono a partir da placa (RF06) sem acessar a tabela de clientes
+// diretamente.
+export async function buscarPorPlaca(placa) {
+  const normalizada = limparPlaca(placa);
+  const veiculo = await veiculosRepository.buscarPorPlacaComCliente(normalizada);
+  if (!veiculo) {
+    throw new NaoEncontradoError('Nenhum veículo encontrado com esta placa.');
+  }
+  return veiculo;
+}
+
 export async function criar(dados) {
   const placa = limparPlaca(dados.placa);
 
