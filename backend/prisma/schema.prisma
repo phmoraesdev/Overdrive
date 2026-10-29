@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum PerfilFuncionario {
+  RECEPCIONISTA
+  MECANICO
+  ADMINISTRADOR
+}
+
+// Segue o diagrama de estados em docs/Overdrive_Requisitos_e_Modelagem.docx,
+// não a lista informal combinada no início do projeto.
+enum StatusOrdemServico {
+  ABERTA
+  AGUARDANDO_APROVACAO
+  REPROVADA
+  EM_EXECUCAO
+  AGUARDANDO_PECA
+  PRONTO_PARA_RETIRADA
+  ENCERRADA
+}
+
+enum TipoItemOrcamento {
+  PECA
+  MAO_DE_OBRA
+}
+
+enum StatusAgendamento {
+  AGENDADO
+  REAGENDADO
+  CANCELADO
+  CONCLUIDO
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+}
+
+enum TipoConta {
+  PAGAR
+  RECEBER
+}
+
+enum StatusConta {
+  ABERTA
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  CARTAO
+  BOLETO
+}
+
+enum AcaoAuditoria {
+  CRIACAO
+  ALTERACAO
+  EXCLUSAO
+}
+
+model Funcionario {
+  id              String            @id @default(cuid())
+  nome            String
+  email           String            @unique
+  senhaHash       String
+  perfil          PerfilFuncionario
+  ativo           Boolean           @default(true)
+  tentativasLogin Int               @default(0)
+  bloqueadoAte    DateTime?
+  ultimoLoginEm   DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  ordensComoMecanico OrdemServico[]      @relation("OrdemServicoMecanico")
+  ordensAbertasPor   OrdemServico[]      @relation("OrdemServicoAbertaPor")
+  historicosStatus   HistoricoStatusOS[]
+  auditorias         Auditoria[]
+
+  @@index([nome])
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  nome      String
+  cpf       String   @unique
+  telefone  String
+  email     String?
+  endereco  String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  veiculos      Veiculo[]
+  ordensServico OrdemServico[]
+  agendamentos  Agendamento[]
+
+  @@index([nome])
+  @@index([cpf])
+}
+
+model Veiculo {
+  id        String   @id @default(cuid())
+  placa     String   @unique
+  marca     String
+  modelo    String
+  ano       Int
+  cor       String?
+  km        Int      @default(0)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  ordensServico OrdemServico[]
+  agendamentos  Agendamento[]
+
+  @@index([placa])
+  @@index([clienteId])
+}
+
+model OrdemServico {
+  id               String             @id @default(cuid())
+  numero           Int                @unique
+  status           StatusOrdemServico @default(ABERTA)
+  kmEntrada        Int
+  problemaRelatado String
+  abertaEm         DateTime           @default(now())
+  encerradaEm      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id])
+
+  mecanicoId String?
+  mecanico   Funcionario? @relation("OrdemServicoMecanico", fields: [mecanicoId], references: [id])
+
+  abertaPorId String?
+  abertaPor   Funcionario? @relation("OrdemServicoAbertaPor", fields: [abertaPorId], references: [id])
+
+  checklistEntrada     ChecklistEntrada?
+  itensOrcamento       ItemOrcamento[]
+  historicosStatus     HistoricoStatusOS[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+  contas               Conta[]
+
+  @@index([status])
+  @@index([veiculoId])
+  @@index([clienteId])
+}
+
+model ChecklistEntrada {
+  id               String   @id @default(cuid())
+  avarias          String?
+  nivelCombustivel String?
+  itensPresentes   String?
+  observacoes      String?
+  createdAt        DateTime @default(now())
+
+  ordemServicoId String       @unique
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+}
+
+model ItemOrcamento {
+  id            String            @id @default(cuid())
+  tipo          TipoItemOrcamento
+  descricao     String
+  quantidade    Decimal
+  valorUnitario Decimal
+  aprovado      Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  pecaId String?
+  peca   Peca?   @relation(fields: [pecaId], references: [id])
+}
+
+model HistoricoStatusOS {
+  id             String              @id @default(cuid())
+  statusAnterior StatusOrdemServico?
+  statusNovo     StatusOrdemServico
+  alteradoEm     DateTime            @default(now())
+
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  funcionarioId String?
+  funcionario   Funcionario? @relation(fields: [funcionarioId], references: [id])
+}
+
+model Agendamento {
+  id          String            @id @default(cuid())
+  dataHora    DateTime
+  status      StatusAgendamento @default(AGENDADO)
+  observacoes String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  veiculoId String?
+  veiculo   Veiculo? @relation(fields: [veiculoId], references: [id])
+
+  @@index([dataHora])
+}
+
+model Peca {
+  id               String   @id @default(cuid())
+  codigo           String   @unique
+  descricao        String
+  precoCusto       Decimal
+  precoVenda       Decimal
+  quantidade       Int      @default(0)
+  quantidadeMinima Int      @default(0)
+  ativo            Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  itensOrcamento       ItemOrcamento[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+
+  @@index([codigo])
+  @@index([descricao])
+}
+
+model MovimentacaoEstoque {
+  id         String                  @id @default(cuid())
+  tipo       TipoMovimentacaoEstoque
+  quantidade Int
+  motivo     String?
+  criadaEm   DateTime                @default(now())
+
+  pecaId String
+  peca   Peca   @relation(fields: [pecaId], references: [id])
+
+  ordemServicoId String?
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+}
+
+model Conta {
+  id             String          @id @default(cuid())
+  tipo           TipoConta
+  descricao      String
+  valor          Decimal
+  vencimento     DateTime
+  status         StatusConta     @default(ABERTA)
+  formaPagamento FormaPagamento?
+  pagaEm         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  ordemServicoId String?
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+
+  parcelas Parcela[]
+
+  @@index([status])
+  @@index([vencimento])
+}
+
+model Parcela {
+  id         String    @id @default(cuid())
+  numero     Int
+  valor      Decimal
+  vencimento DateTime
+  pagaEm     DateTime?
+  createdAt  DateTime  @default(now())
+
+  contaId String
+  conta   Conta  @relation(fields: [contaId], references: [id])
+}
+
+// Tabela pronta como ponto de extensão do RNF12 (auditoria). Ainda não há
+// nenhum código gravando registros aqui — entra fora do escopo das sprints.
+model Auditoria {
+  id          String        @id @default(cuid())
+  entidade    String
+  entidadeId  String
+  acao        AcaoAuditoria
+  dadosAntes  Json?
+  dadosDepois Json?
+  criadaEm    DateTime      @default(now())
+
+  funcionarioId String?
+  funcionario   Funcionario? @relation(fields: [funcionarioId], references: [id])
+
+  @@index([entidade, entidadeId])
+}
