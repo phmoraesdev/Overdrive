@@ -1,16 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as ordensService from '../services/ordens';
-
-const ROTULO_STATUS = {
-  ABERTA: 'Aberta',
-  AGUARDANDO_APROVACAO: 'Aguardando aprovação',
-  REPROVADA: 'Reprovada',
-  EM_EXECUCAO: 'Em execução',
-  AGUARDANDO_PECA: 'Aguardando peça',
-  PRONTO_PARA_RETIRADA: 'Pronto para retirada',
-  ENCERRADA: 'Encerrada',
-};
+import { formatarData } from '../utils/formatacao';
+import { ROTULO_STATUS, COR_STATUS } from '../utils/statusOrdem';
+import Badge from '../components/Badge';
 
 function HistoricoVeiculo() {
   const [placa, setPlaca] = useState('');
@@ -94,13 +87,13 @@ function HistoricoVeiculo() {
                       {ordem.numero}
                     </Link>
                   </td>
-                  <td className="px-4 py-2">{new Date(ordem.abertaEm).toLocaleDateString('pt-BR')}</td>
+                  <td className="px-4 py-2">{formatarData(ordem.abertaEm)}</td>
                   <td className="px-4 py-2">{ordem.kmEntrada}</td>
                   <td className="px-4 py-2">{ordem.problemaRelatado}</td>
                   <td className="px-4 py-2">
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    <Badge cor={COR_STATUS[ordem.status] ?? 'slate'}>
                       {ROTULO_STATUS[ordem.status] ?? ordem.status}
-                    </span>
+                    </Badge>
                   </td>
                 </tr>
               ))}

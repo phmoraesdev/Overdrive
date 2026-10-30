@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/authContextBase.js';
 import * as ordensService from '../services/ordens';
+import { COR_STATUS } from '../utils/statusOrdem';
+
+const PONTO_POR_COR = {
+  slate: 'bg-slate-400',
+  amber: 'bg-amber-400',
+  emerald: 'bg-emerald-400',
+  red: 'bg-red-400',
+  blue: 'bg-blue-400',
+};
 
 const COLUNAS = [
   { status: 'ABERTA', titulo: 'Aberta' },
@@ -69,9 +78,12 @@ function CartaoOS({ ordemServico, podeAtualizar, onAtualizado }) {
 
 function PainelOS() {
   const { funcionario } = useAuth();
+  const [searchParams] = useSearchParams();
+  const statusDestaque = searchParams.get('status');
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const podeAtualizar = ['MECANICO', 'ADMINISTRADOR'].includes(funcionario?.perfil);
+  const colunaDestacadaRef = useRef(null);
 
   async function carregar() {
     const dados = await ordensService.listarPainel();
@@ -85,17 +97,36 @@ function PainelOS() {
     carregar();
   }, []);
 
+  useEffect(() => {
+    // Vindo de um cartão do dashboard (?status=): rola até a coluna
+    // correspondente — sem esconder as outras, ainda é um Kanban.
+    if (!carregando && statusDestaque) {
+      colunaDestacadaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [carregando, statusDestaque]);
+
   if (carregando) return <p className="text-slate-500">Carregando...</p>;
 
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold text-slate-900">Painel de Ordens de Serviço</h1>
-      <div className="grid gap-4 overflow-x-auto pb-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-4 pb-2 sm:grid-cols-3 lg:grid-cols-5">
         {COLUNAS.map((coluna) => {
           const ordensDaColuna = ordens.filter((os) => os.status === coluna.status);
+          const destacada = coluna.status === statusDestaque;
           return (
-            <div key={coluna.status} className="min-w-[220px] space-y-2 rounded-lg bg-slate-100 p-3">
-              <h2 className="text-sm font-semibold text-slate-700">
+            <div
+              key={coluna.status}
+              ref={destacada ? colunaDestacadaRef : null}
+              className={`min-w-[220px] space-y-2 rounded-lg bg-slate-100 p-3 ${
+                destacada ? 'ring-2 ring-slate-900' : ''
+              }`}
+            >
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${PONTO_POR_COR[COR_STATUS[coluna.status]] ?? 'bg-slate-400'}`}
+                  aria-hidden="true"
+                />
                 {coluna.titulo} ({ordensDaColuna.length})
               </h2>
               <div className="space-y-2">
@@ -108,7 +139,7 @@ function PainelOS() {
                   />
                 ))}
                 {ordensDaColuna.length === 0 && (
-                  <p className="text-xs text-slate-400">Nenhuma OS aqui.</p>
+                  <p className="text-xs text-slate-600">Nenhuma OS aqui.</p>
                 )}
               </div>
             </div>

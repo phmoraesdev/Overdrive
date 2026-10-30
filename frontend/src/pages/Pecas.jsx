@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/authContextBase.js';
 import * as pecasService from '../services/pecas';
+import { formatarReais } from '../utils/formatacao';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
 
 const FORM_INICIAL = {
   codigo: '',
@@ -198,6 +201,7 @@ function Pecas() {
   const [formAberto, setFormAberto] = useState(false);
   const [pecaEmEdicao, setPecaEmEdicao] = useState(null);
   const [emAlerta, setEmAlerta] = useState([]);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregar() {
     const dados = await pecasService.listar({ busca });
@@ -234,8 +238,10 @@ function Pecas() {
   }
 
   async function handleSalvo() {
+    const eraEdicao = Boolean(pecaEmEdicao);
     fecharForm();
     await carregar();
+    mostrarSucesso(eraEdicao ? 'Peça atualizada com sucesso.' : 'Peça cadastrada com sucesso.');
   }
 
   async function alternarAtivo(peca) {
@@ -245,6 +251,7 @@ function Pecas() {
     }
     await pecasService.definirAtivo(peca.id, !peca.ativo);
     await carregar();
+    mostrarSucesso(acao === 'inativar' ? 'Peça inativada com sucesso.' : 'Peça reativada com sucesso.');
   }
 
   return (
@@ -261,6 +268,8 @@ function Pecas() {
           </button>
         )}
       </div>
+
+      <MensagemSucesso mensagem={mensagemSucesso} />
 
       {ehAdministrador && emAlerta.length > 0 && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
@@ -312,8 +321,8 @@ function Pecas() {
                 <tr key={peca.id}>
                   <td className="px-4 py-2 font-medium">{peca.codigo}</td>
                   <td className="px-4 py-2">{peca.descricao}</td>
-                  <td className="px-4 py-2">R$ {Number(peca.precoCusto).toFixed(2)}</td>
-                  <td className="px-4 py-2">R$ {Number(peca.precoVenda).toFixed(2)}</td>
+                  <td className="px-4 py-2">{formatarReais(peca.precoCusto)}</td>
+                  <td className="px-4 py-2">{formatarReais(peca.precoVenda)}</td>
                   <td
                     className={`px-4 py-2 ${
                       peca.quantidade <= peca.quantidadeMinima ? 'font-medium text-red-600' : ''

@@ -1,13 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import bcrypt from 'bcrypt';
 import request from 'supertest';
 import app from './app.js';
+import prisma from './shared/prismaClient.js';
 
 // PB21: teste de integração de ponta a ponta — bate na API real (Express +
 // Prisma + SQLite de verdade, por isso precisa do nix-shell no NixOS, igual
-// ao app.test.js) e usa os usuários do seed (`npm run prisma:seed`, que
-// precisa ter rodado antes). Cliente/veículo/peça são criados com valores
-// aleatórios a cada execução para não colidir com dados de execuções
-// anteriores.
+// ao app.test.js). Roda contra um banco de teste isolado (prisma/test.db,
+// criado do zero a partir das migrations por `test/globalSetup.js`) — nunca
+// toca no dev.db usado por `npm run dev`/pelo seed de demonstração.
+//
+// Não depende do seed (`prisma/seed.js`): cria os próprios funcionários de
+// teste no `beforeAll`, com e-mail único por execução, e cliente/veículo/peça
+// com valores aleatórios — assim não depende de dados de nenhum outro teste
+// nem da ordem em que os testes rodam.
 //
 // Roteiro:
 // 1. Login como recepcionista, mecânico e administrador
@@ -18,6 +24,9 @@ import app from './app.js';
 // 6. Marcar a OS como pronta para retirada (dispara a notificação ao cliente)
 // 7. Encerrar com pagamento
 // 8. Conferir baixa de estoque, lançamento financeiro, recibo e notificação
+
+const SENHA_TESTE = 'TesteIntegracao@123';
+const SUFIXO_EXECUCAO = Math.random().toString(36).slice(2, 8);
 
 function gerarCpfValido() {
   function digitoVerificador(base) {
@@ -45,7 +54,28 @@ function gerarCodigoPeca() {
   return `TESTE-INT-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
+async function criarFuncionarioDeTeste(perfil) {
+  const email = `integracao.${perfil.toLowerCase()}.${SUFIXO_EXECUCAO}@teste.local`;
+  const senhaHash = await bcrypt.hash(SENHA_TESTE, 4); // custo baixo só pra não deixar o teste lento
+  await prisma.funcionario.create({
+    data: { nome: `Teste ${perfil}`, email, senhaHash, perfil },
+  });
+  return email;
+}
+
 describe('Fluxo completo da OS (integração)', () => {
+  let emailRecepcao;
+  let emailMecanico;
+  let emailAdmin;
+
+  beforeAll(async () => {
+    [emailRecepcao, emailMecanico, emailAdmin] = await Promise.all([
+      criarFuncionarioDeTeste('RECEPCIONISTA'),
+      criarFuncionarioDeTeste('MECANICO'),
+      criarFuncionarioDeTeste('ADMINISTRADOR'),
+    ]);
+  });
+
   it(
     'cadastra cliente/veículo, abre OS, orça, aprova, executa, encerra com ' +
       'pagamento, baixa estoque e lança no financeiro',
@@ -56,17 +86,17 @@ describe('Fluxo completo da OS (integração)', () => {
 
       const loginRecepcao = await recepcao
         .post('/api/auth/login')
-        .send({ email: 'recepcao@overdrive.com', senha: 'Recepcao@123' });
+        .send({ email: emailRecepcao, senha: SENHA_TESTE });
       expect(loginRecepcao.status).toBe(200);
 
       const loginMecanico = await mecanico
         .post('/api/auth/login')
-        .send({ email: 'mecanico@overdrive.com', senha: 'Mecanico@123' });
+        .send({ email: emailMecanico, senha: SENHA_TESTE });
       expect(loginMecanico.status).toBe(200);
 
       const loginAdmin = await admin
         .post('/api/auth/login')
-        .send({ email: 'admin@overdrive.com', senha: 'Admin@123' });
+        .send({ email: emailAdmin, senha: SENHA_TESTE });
       expect(loginAdmin.status).toBe(200);
 
       // 2. cliente + veículo

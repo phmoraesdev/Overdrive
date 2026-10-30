@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Capturas geradas por screenshot-audit.mjs (verificação visual, não é artefato do app)
+screenshot-audit/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

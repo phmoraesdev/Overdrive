@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as funcionariosService from '../services/funcionarios';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
 
 const PERFIS = ['RECEPCIONISTA', 'MECANICO', 'ADMINISTRADOR'];
 
@@ -131,6 +133,7 @@ function Funcionarios() {
   const [busca, setBusca] = useState('');
   const [formAberto, setFormAberto] = useState(false);
   const [funcionarioEmEdicao, setFuncionarioEmEdicao] = useState(null);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregar() {
     const dados = await funcionariosService.listar({ busca });
@@ -161,8 +164,10 @@ function Funcionarios() {
   }
 
   async function handleSalvo() {
+    const eraEdicao = Boolean(funcionarioEmEdicao);
     fecharForm();
     await carregar();
+    mostrarSucesso(eraEdicao ? 'Funcionário atualizado com sucesso.' : 'Funcionário cadastrado com sucesso.');
   }
 
   async function alternarAtivo(funcionario) {
@@ -172,6 +177,7 @@ function Funcionarios() {
     }
     await funcionariosService.definirAtivo(funcionario.id, !funcionario.ativo);
     await carregar();
+    mostrarSucesso(acao === 'inativar' ? 'Funcionário inativado com sucesso.' : 'Funcionário reativado com sucesso.');
   }
 
   return (
@@ -186,6 +192,8 @@ function Funcionarios() {
           Novo funcionário
         </button>
       </div>
+
+      <MensagemSucesso mensagem={mensagemSucesso} />
 
       <input
         type="search"

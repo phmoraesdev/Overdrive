@@ -1,1 +1,8 @@
 @import 'tailwindcss';
+
+/* RNF06: indicador de foco visível e consistente em todo o app — substitui
+   os estilos de foco que antes só existiam (de forma isolada) no Login. */
+:focus-visible {
+  outline: 2px solid var(--color-slate-500, #64748b);
+  outline-offset: 2px;
+}

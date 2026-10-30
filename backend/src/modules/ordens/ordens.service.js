@@ -341,3 +341,9 @@ export async function gerarRecibo(ordemServicoId) {
   }
   return gerarReciboBuffer(ordemServico);
 }
+
+// --- PB14: notificações ------------------------------------------------------
+
+export function listarNotificacoes(ordemServicoId) {
+  return notificacoesService.listarPorOrdemServico(ordemServicoId);
+}

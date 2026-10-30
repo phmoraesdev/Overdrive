@@ -32,7 +32,7 @@ function Layout() {
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
         <div className="flex items-center gap-4">
           <span className="text-lg font-semibold text-slate-900">Overdrive</span>
-          <nav className="flex gap-1" aria-label="Menu principal">
+          <nav className="flex flex-wrap gap-1" aria-label="Menu principal">
             {itensVisiveis.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClasses}>
                 {item.label}

@@ -1,5 +1,4 @@
 import * as ordensService from './ordens.service.js';
-import * as notificacoesService from '../notificacoes/notificacoes.service.js';
 import {
   abrirOrdemServicoSchema,
   atualizarItemOrcamentoSchema,
@@ -102,6 +101,6 @@ export async function gerarRecibo(req, res) {
 // --- PB14: notificações ------------------------------------------------------
 
 export async function listarNotificacoes(req, res) {
-  const notificacoes = await notificacoesService.listarPorOrdemServico(req.params.id);
+  const notificacoes = await ordensService.listarNotificacoes(req.params.id);
   res.json(notificacoes);
 }

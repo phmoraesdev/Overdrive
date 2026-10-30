@@ -4,6 +4,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import agendaRoutes from './modules/agenda/agenda.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import clientesRoutes from './modules/clientes/clientes.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import pecasRoutes from './modules/estoque/pecas.routes.js';
 import financeiroRoutes from './modules/financeiro/financeiro.routes.js';
 import funcionariosRoutes from './modules/funcionarios/funcionarios.routes.js';
@@ -29,6 +30,7 @@ app.use('/api/agenda', agendaRoutes);
 app.use('/api/pecas', pecasRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/relatorios', relatoriosRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 

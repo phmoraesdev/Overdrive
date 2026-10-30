@@ -1,13 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as relatoriosService from '../services/relatorios';
+import { formatarReais, formatarData } from '../utils/formatacao';
 
-function formatarReais(valor) {
-  return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
-}
-
-function formatarData(data) {
-  return new Date(data).toLocaleDateString('pt-BR');
-}
+const PADRAO_DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
@@ -40,15 +36,23 @@ function BotoesExportar({ urlPdf, urlXlsx }) {
 }
 
 function Relatorios() {
-  const [inicio, setInicio] = useState(primeiroDiaDoMesISO());
-  const [fim, setFim] = useState(hojeISO());
+  const [searchParams] = useSearchParams();
+  // Atalho vindo do dashboard (?inicio=&fim=): já preenche o período.
+  const inicioUrl = searchParams.get('inicio');
+  const fimUrl = searchParams.get('fim');
+  const periodoValidoNaUrl = PADRAO_DATA_ISO.test(inicioUrl) && PADRAO_DATA_ISO.test(fimUrl);
+
+  const [inicio, setInicio] = useState(() =>
+    periodoValidoNaUrl ? inicioUrl : primeiroDiaDoMesISO(),
+  );
+  const [fim, setFim] = useState(() => (periodoValidoNaUrl ? fimUrl : hojeISO()));
   const [faturamento, setFaturamento] = useState(null);
   const [desempenho, setDesempenho] = useState(null);
   const [erro, setErro] = useState('');
   const [consultando, setConsultando] = useState(false);
 
   async function consultar(event) {
-    event.preventDefault();
+    event?.preventDefault();
     setErro('');
     setConsultando(true);
     try {
@@ -64,6 +68,15 @@ function Relatorios() {
       setConsultando(false);
     }
   }
+
+  useEffect(() => {
+    if (periodoValidoNaUrl) {
+      // consultar() só muda estado depois do await; a regra não enxerga isso.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      consultar();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <section className="space-y-6">
@@ -142,24 +155,26 @@ function Relatorios() {
             </div>
           </div>
           {faturamento.ordens.length > 0 && (
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-slate-600">
-                <tr>
-                  <th className="py-1 pr-2">OS</th>
-                  <th className="py-1 pr-2">Encerrada em</th>
-                  <th className="py-1 pr-2">Valor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {faturamento.ordens.map((os) => (
-                  <tr key={os.numero}>
-                    <td className="py-1 pr-2">nº {os.numero}</td>
-                    <td className="py-1 pr-2">{formatarData(os.encerradaEm)}</td>
-                    <td className="py-1 pr-2">{formatarReais(os.valor)}</td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-slate-600">
+                  <tr>
+                    <th className="py-1 pr-2">OS</th>
+                    <th className="py-1 pr-2">Encerrada em</th>
+                    <th className="py-1 pr-2">Valor</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {faturamento.ordens.map((os) => (
+                    <tr key={os.numero}>
+                      <td className="py-1 pr-2">nº {os.numero}</td>
+                      <td className="py-1 pr-2">{formatarData(os.encerradaEm)}</td>
+                      <td className="py-1 pr-2">{formatarReais(os.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -176,24 +191,26 @@ function Relatorios() {
           {desempenho.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma OS encerrada com mecânico no período.</p>
           ) : (
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-slate-600">
-                <tr>
-                  <th className="py-1 pr-2">Mecânico</th>
-                  <th className="py-1 pr-2">OS encerradas</th>
-                  <th className="py-1 pr-2">Total mão de obra</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {desempenho.map((linha) => (
-                  <tr key={linha.mecanicoId}>
-                    <td className="py-1 pr-2">{linha.mecanicoNome}</td>
-                    <td className="py-1 pr-2">{linha.quantidadeOS}</td>
-                    <td className="py-1 pr-2">{formatarReais(linha.totalMaoDeObra)}</td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-slate-600">
+                  <tr>
+                    <th className="py-1 pr-2">Mecânico</th>
+                    <th className="py-1 pr-2">OS encerradas</th>
+                    <th className="py-1 pr-2">Total mão de obra</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {desempenho.map((linha) => (
+                    <tr key={linha.mecanicoId}>
+                      <td className="py-1 pr-2">{linha.mecanicoNome}</td>
+                      <td className="py-1 pr-2">{linha.quantidadeOS}</td>
+                      <td className="py-1 pr-2">{formatarReais(linha.totalMaoDeObra)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

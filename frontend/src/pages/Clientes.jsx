@@ -1,16 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import * as clientesService from '../services/clientes';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
+import ErroCampo from '../components/ErroCampo';
+import { erroCpf } from '../utils/validadores';
 
 const FORM_INICIAL = { nome: '', cpf: '', telefone: '', email: '', endereco: '' };
 
 function ClienteForm({ onCancelar, onSalvo }) {
   const [dados, setDados] = useState(FORM_INICIAL);
   const [erro, setErro] = useState('');
+  const [erroCpfCampo, setErroCpfCampo] = useState('');
   const [enviando, setEnviando] = useState(false);
+
+  function handleCpfChange(valor) {
+    setDados({ ...dados, cpf: valor });
+    if (erroCpfCampo) setErroCpfCampo(erroCpf(valor));
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const erroCpfAtual = erroCpf(dados.cpf);
+    setErroCpfCampo(erroCpfAtual);
+    if (erroCpfAtual) return;
+
     setErro('');
     setEnviando(true);
     try {
@@ -30,7 +44,7 @@ function ClienteForm({ onCancelar, onSalvo }) {
     >
       <h2 className="font-medium text-slate-900">Novo cliente</h2>
       {erro && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p id="erro-cliente-form" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {erro}
         </p>
       )}
@@ -42,6 +56,7 @@ function ClienteForm({ onCancelar, onSalvo }) {
           <input
             id="nome"
             required
+            aria-describedby={erro ? 'erro-cliente-form' : undefined}
             value={dados.nome}
             onChange={(event) => setDados({ ...dados, nome: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -55,10 +70,15 @@ function ClienteForm({ onCancelar, onSalvo }) {
             id="cpf"
             required
             placeholder="000.000.000-00"
+            aria-describedby={[erroCpfCampo && 'erro-cpf-cliente', erro && 'erro-cliente-form']
+              .filter(Boolean)
+              .join(' ') || undefined}
             value={dados.cpf}
-            onChange={(event) => setDados({ ...dados, cpf: event.target.value })}
+            onChange={(event) => handleCpfChange(event.target.value)}
+            onBlur={(event) => setErroCpfCampo(erroCpf(event.target.value))}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+          <ErroCampo id="erro-cpf-cliente" mensagem={erroCpfCampo} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700" htmlFor="telefone">
@@ -67,6 +87,7 @@ function ClienteForm({ onCancelar, onSalvo }) {
           <input
             id="telefone"
             required
+            aria-describedby={erro ? 'erro-cliente-form' : undefined}
             value={dados.telefone}
             onChange={(event) => setDados({ ...dados, telefone: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -79,6 +100,7 @@ function ClienteForm({ onCancelar, onSalvo }) {
           <input
             id="email"
             type="email"
+            aria-describedby={erro ? 'erro-cliente-form' : undefined}
             value={dados.email}
             onChange={(event) => setDados({ ...dados, email: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -117,10 +139,13 @@ function ClienteForm({ onCancelar, onSalvo }) {
 }
 
 function Clientes() {
+  const [searchParams] = useSearchParams();
   const [clientes, setClientes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
-  const [formAberto, setFormAberto] = useState(false);
+  // Atalho vindo do dashboard (?novo=1): já abre o formulário de cadastro.
+  const [formAberto, setFormAberto] = useState(() => searchParams.get('novo') === '1');
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregar() {
     const dados = await clientesService.listar({ busca });
@@ -138,6 +163,7 @@ function Clientes() {
   async function handleSalvo() {
     setFormAberto(false);
     await carregar();
+    mostrarSucesso('Cliente cadastrado com sucesso.');
   }
 
   async function alternarAtivo(cliente) {
@@ -147,6 +173,7 @@ function Clientes() {
     }
     await clientesService.definirAtivo(cliente.id, !cliente.ativo);
     await carregar();
+    mostrarSucesso(acao === 'inativar' ? 'Cliente inativado com sucesso.' : 'Cliente reativado com sucesso.');
   }
 
   return (
@@ -161,6 +188,8 @@ function Clientes() {
           Novo cliente
         </button>
       </div>
+
+      <MensagemSucesso mensagem={mensagemSucesso} />
 
       <input
         type="search"

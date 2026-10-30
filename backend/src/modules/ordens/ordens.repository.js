@@ -64,13 +64,16 @@ export function listarPorVeiculo(veiculoId) {
 }
 
 // Painel Kanban (PB13): todas as OS que ainda estão em algum ponto do fluxo.
+// `cliente.email`/`telefone` não são usados pelo painel em si — servem para
+// o dashboard (modules/dashboard) calcular o alerta de cliente sem contato
+// sem precisar de outra consulta.
 export function listarParaPainel() {
   return prisma.ordemServico.findMany({
     where: { status: { notIn: ['ENCERRADA', 'REPROVADA'] } },
     select: {
       ...CAMPOS_PUBLICOS,
       veiculo: { select: { placa: true, marca: true, modelo: true } },
-      cliente: { select: { nome: true } },
+      cliente: { select: { nome: true, email: true, telefone: true } },
     },
     orderBy: { abertaEm: 'asc' },
   });

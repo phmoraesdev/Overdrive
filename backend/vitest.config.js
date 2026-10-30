@@ -2,6 +2,15 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Banco de teste isolado (prisma/test.db): criado do zero a partir das
+    // migrations em `test/globalSetup.js` antes da suíte, apagado depois.
+    // `env` injeta DATABASE_URL nos workers de teste antes de qualquer
+    // import rodar, então `shared/prismaClient.js` nunca abre o dev.db — o
+    // valor aqui precisa bater com `DATABASE_URL_TESTE` no globalSetup.
+    env: {
+      DATABASE_URL: 'file:./test.db',
+    },
+    globalSetup: ['./test/globalSetup.js'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

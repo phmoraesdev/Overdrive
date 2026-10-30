@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as ordensService from '../services/ordens';
+import { useRascunho } from '../hooks/useRascunho';
 
 // RNF09: rascunho salvo no localStorage enquanto o recepcionista digita, para
 // não perder o que já foi preenchido se a página recarregar ou a conexão cair.
@@ -51,31 +52,6 @@ const CHECKLIST_INICIAL = {
 };
 
 const FORMULARIO_INICIAL = { kmEntrada: '', problemaRelatado: '', checklist: CHECKLIST_INICIAL };
-
-function carregarRascunho() {
-  try {
-    const bruto = localStorage.getItem(CHAVE_RASCUNHO);
-    return bruto ? JSON.parse(bruto) : null;
-  } catch {
-    return null;
-  }
-}
-
-function salvarRascunho(dados) {
-  try {
-    localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(dados));
-  } catch {
-    // localStorage indisponível (modo privado, cota cheia etc.) — segue sem rascunho.
-  }
-}
-
-function limparRascunho() {
-  try {
-    localStorage.removeItem(CHAVE_RASCUNHO);
-  } catch {
-    // ver comentário acima
-  }
-}
 
 function ChecklistForm({ checklist, onChange }) {
   const [regiao, setRegiao] = useState(REGIOES_AVARIA[0]);
@@ -241,6 +217,7 @@ function AbrirOS() {
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState('');
   const [osCriada, setOsCriada] = useState(null);
+  const { rascunhoEncontrado, salvarRascunho, descartarRascunho } = useRascunho(CHAVE_RASCUNHO);
 
   async function buscarVeiculo(placaParam) {
     const placa = placaParam ?? placaBusca;
@@ -259,15 +236,14 @@ function AbrirOS() {
   }
 
   useEffect(() => {
-    const rascunho = carregarRascunho();
-    if (rascunho) {
+    if (rascunhoEncontrado) {
       // Recupera o rascunho salvo (RNF09): não há como sincronizar isso de
       // outro jeito, o estado vem do localStorage, não de props/eventos.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlacaBusca(rascunho.placaBusca ?? '');
-      setFormulario(rascunho.formulario ?? FORMULARIO_INICIAL);
-      if (rascunho.placaBusca) {
-        buscarVeiculo(rascunho.placaBusca);
+      setPlacaBusca(rascunhoEncontrado.placaBusca ?? '');
+      setFormulario(rascunhoEncontrado.formulario ?? FORMULARIO_INICIAL);
+      if (rascunhoEncontrado.placaBusca) {
+        buscarVeiculo(rascunhoEncontrado.placaBusca);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,7 +252,7 @@ function AbrirOS() {
   useEffect(() => {
     if (osCriada) return;
     salvarRascunho({ placaBusca, formulario });
-  }, [placaBusca, formulario, osCriada]);
+  }, [placaBusca, formulario, osCriada, salvarRascunho]);
 
   function handleBuscarSubmit(event) {
     event.preventDefault();
@@ -304,7 +280,7 @@ function AbrirOS() {
       });
       setOsCriada(resultado);
       setAvisos(null);
-      limparRascunho();
+      descartarRascunho();
     } catch (error) {
       if (error.response?.status === 409 && error.response?.data?.avisos) {
         setAvisos(error.response.data.avisos);
@@ -373,6 +349,7 @@ function AbrirOS() {
               id="placaBusca"
               required
               placeholder="ABC1234 ou ABC1D23"
+              aria-describedby={erroBusca ? 'erro-busca-veiculo' : undefined}
               value={placaBusca}
               onChange={(event) => setPlacaBusca(event.target.value)}
               className="mt-1 w-56 rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
@@ -386,7 +363,11 @@ function AbrirOS() {
             {buscando ? 'Buscando...' : 'Buscar'}
           </button>
           {erroBusca && (
-            <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            <p
+              id="erro-busca-veiculo"
+              className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+              role="alert"
+            >
               {erroBusca}
             </p>
           )}
@@ -442,6 +423,7 @@ function AbrirOS() {
                   type="number"
                   min="0"
                   required
+                  aria-describedby={erroEnvio ? 'erro-envio-os' : undefined}
                   value={formulario.kmEntrada}
                   onChange={(event) =>
                     setFormulario({ ...formulario, kmEntrada: event.target.value })
@@ -457,6 +439,7 @@ function AbrirOS() {
                   id="problemaRelatado"
                   required
                   rows={2}
+                  aria-describedby={erroEnvio ? 'erro-envio-os' : undefined}
                   value={formulario.problemaRelatado}
                   onChange={(event) =>
                     setFormulario({ ...formulario, problemaRelatado: event.target.value })
@@ -486,7 +469,7 @@ function AbrirOS() {
             )}
 
             {erroEnvio && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              <p id="erro-envio-os" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
                 {erroEnvio}
               </p>
             )}

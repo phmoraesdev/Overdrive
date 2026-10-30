@@ -1,13 +1,9 @@
 import { Fragment, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as financeiroService from '../services/financeiro';
-
-function formatarReais(valor) {
-  return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
-}
-
-function formatarData(data) {
-  return new Date(data).toLocaleDateString('pt-BR');
-}
+import { formatarReais, formatarData } from '../utils/formatacao';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
@@ -265,24 +261,26 @@ function FluxoCaixa() {
           </div>
 
           {resultado.porDia.length > 0 && (
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-slate-600">
-                <tr>
-                  <th className="py-1 pr-2">Dia</th>
-                  <th className="py-1 pr-2">Entradas</th>
-                  <th className="py-1 pr-2">Saídas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {resultado.porDia.map((linha) => (
-                  <tr key={linha.data}>
-                    <td className="py-1 pr-2">{formatarData(linha.data)}</td>
-                    <td className="py-1 pr-2 text-emerald-700">{formatarReais(linha.entradas)}</td>
-                    <td className="py-1 pr-2 text-red-700">{formatarReais(linha.saidas)}</td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-slate-600">
+                  <tr>
+                    <th className="py-1 pr-2">Dia</th>
+                    <th className="py-1 pr-2">Entradas</th>
+                    <th className="py-1 pr-2">Saídas</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {resultado.porDia.map((linha) => (
+                    <tr key={linha.data}>
+                      <td className="py-1 pr-2">{formatarData(linha.data)}</td>
+                      <td className="py-1 pr-2 text-emerald-700">{formatarReais(linha.entradas)}</td>
+                      <td className="py-1 pr-2 text-red-700">{formatarReais(linha.saidas)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}
@@ -290,12 +288,20 @@ function FluxoCaixa() {
   );
 }
 
+const TIPOS_VALIDOS = ['PAGAR', 'RECEBER'];
+
 function Financeiro() {
+  const [searchParams] = useSearchParams();
   const [contas, setContas] = useState([]);
-  const [tipo, setTipo] = useState('');
+  // Atalho vindo do dashboard (?tipo=PAGAR): já filtra ao abrir a tela.
+  const [tipo, setTipo] = useState(() => {
+    const tipoUrl = searchParams.get('tipo');
+    return TIPOS_VALIDOS.includes(tipoUrl) ? tipoUrl : '';
+  });
   const [carregando, setCarregando] = useState(true);
   const [formAberto, setFormAberto] = useState(false);
   const [contaBaixando, setContaBaixando] = useState(null);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregar() {
     const dados = await financeiroService.listar({ tipo: tipo || undefined });
@@ -313,6 +319,7 @@ function Financeiro() {
   async function handleSalvo() {
     setFormAberto(false);
     await carregar();
+    mostrarSucesso('Conta cadastrada com sucesso.');
   }
 
   async function remover(conta) {
@@ -320,6 +327,7 @@ function Financeiro() {
     try {
       await financeiroService.remover(conta.id);
       await carregar();
+      mostrarSucesso('Conta excluída com sucesso.');
     } catch (error) {
       window.alert(error.response?.data?.message ?? 'Não foi possível excluir a conta.');
     }
@@ -328,6 +336,8 @@ function Financeiro() {
   return (
     <section className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-900">Financeiro</h1>
+
+      <MensagemSucesso mensagem={mensagemSucesso} />
 
       <FluxoCaixa />
 
@@ -430,6 +440,7 @@ function Financeiro() {
                             onBaixado={async () => {
                               setContaBaixando(null);
                               await carregar();
+                              mostrarSucesso('Pagamento registrado com sucesso.');
                             }}
                           />
                         </td>

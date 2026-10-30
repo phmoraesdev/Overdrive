@@ -2,6 +2,10 @@ import { Fragment, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import * as clientesService from '../services/clientes';
 import * as veiculosService from '../services/veiculos';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
+import ErroCampo from '../components/ErroCampo';
+import { erroCpf, erroPlaca } from '../utils/validadores';
 
 const VEICULO_INICIAL = { placa: '', marca: '', modelo: '', ano: '', cor: '', km: '' };
 
@@ -14,10 +18,20 @@ function ClienteInfoForm({ cliente, onAtualizado }) {
     endereco: cliente.endereco ?? '',
   });
   const [erro, setErro] = useState('');
+  const [erroCpfCampo, setErroCpfCampo] = useState('');
   const [enviando, setEnviando] = useState(false);
+
+  function handleCpfChange(valor) {
+    setDados({ ...dados, cpf: valor });
+    if (erroCpfCampo) setErroCpfCampo(erroCpf(valor));
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const erroCpfAtual = erroCpf(dados.cpf);
+    setErroCpfCampo(erroCpfAtual);
+    if (erroCpfAtual) return;
+
     setErro('');
     setEnviando(true);
     try {
@@ -60,10 +74,13 @@ function ClienteInfoForm({ cliente, onAtualizado }) {
           <input
             id="cpf"
             required
+            aria-describedby={erroCpfCampo ? 'erro-cpf-cliente-info' : undefined}
             value={dados.cpf}
-            onChange={(event) => setDados({ ...dados, cpf: event.target.value })}
+            onChange={(event) => handleCpfChange(event.target.value)}
+            onBlur={(event) => setErroCpfCampo(erroCpf(event.target.value))}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+          <ErroCampo id="erro-cpf-cliente-info" mensagem={erroCpfCampo} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700" htmlFor="telefone">
@@ -126,10 +143,20 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
       : VEICULO_INICIAL,
   );
   const [erro, setErro] = useState('');
+  const [erroPlacaCampo, setErroPlacaCampo] = useState('');
   const [enviando, setEnviando] = useState(false);
+
+  function handlePlacaChange(valor) {
+    setDados({ ...dados, placa: valor });
+    if (erroPlacaCampo) setErroPlacaCampo(erroPlaca(valor));
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const erroPlacaAtual = erroPlaca(dados.placa);
+    setErroPlacaCampo(erroPlacaAtual);
+    if (erroPlacaAtual) return;
+
     setErro('');
     setEnviando(true);
     try {
@@ -153,7 +180,7 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
     >
       <h3 className="font-medium text-slate-900">{veiculo ? 'Editar veículo' : 'Novo veículo'}</h3>
       {erro && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p id="erro-veiculo-form" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {erro}
         </p>
       )}
@@ -166,10 +193,15 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
             id="placa"
             required
             placeholder="ABC1234 ou ABC1D23"
+            aria-describedby={[erroPlacaCampo && 'erro-placa-veiculo', erro && 'erro-veiculo-form']
+              .filter(Boolean)
+              .join(' ') || undefined}
             value={dados.placa}
-            onChange={(event) => setDados({ ...dados, placa: event.target.value })}
+            onChange={(event) => handlePlacaChange(event.target.value)}
+            onBlur={(event) => setErroPlacaCampo(erroPlaca(event.target.value))}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+          <ErroCampo id="erro-placa-veiculo" mensagem={erroPlacaCampo} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700" htmlFor="marca">
@@ -178,6 +210,7 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
           <input
             id="marca"
             required
+            aria-describedby={erro ? 'erro-veiculo-form' : undefined}
             value={dados.marca}
             onChange={(event) => setDados({ ...dados, marca: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -190,6 +223,7 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
           <input
             id="modelo"
             required
+            aria-describedby={erro ? 'erro-veiculo-form' : undefined}
             value={dados.modelo}
             onChange={(event) => setDados({ ...dados, modelo: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -203,6 +237,7 @@ function VeiculoForm({ clienteId, veiculo, onCancelar, onSalvo }) {
             id="ano"
             type="number"
             required
+            aria-describedby={erro ? 'erro-veiculo-form' : undefined}
             value={dados.ano}
             onChange={(event) => setDados({ ...dados, ano: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -314,6 +349,7 @@ function ClienteDetalhe() {
   const [formVeiculoAberto, setFormVeiculoAberto] = useState(false);
   const [veiculoEmEdicao, setVeiculoEmEdicao] = useState(null);
   const [veiculoTransferindo, setVeiculoTransferindo] = useState(null);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregarVeiculos() {
     const dados = await veiculosService.listarPorCliente(id);
@@ -339,6 +375,12 @@ function ClienteDetalhe() {
     if (!window.confirm(`Tem certeza que deseja ${acao} ${cliente.nome}?`)) return;
     const atualizado = await clientesService.definirAtivo(cliente.id, !cliente.ativo);
     setCliente(atualizado);
+    mostrarSucesso(acao === 'inativar' ? 'Cliente inativado com sucesso.' : 'Cliente reativado com sucesso.');
+  }
+
+  function handleClienteAtualizado(atualizado) {
+    setCliente(atualizado);
+    mostrarSucesso('Dados do cliente atualizados com sucesso.');
   }
 
   async function alternarAtivoVeiculo(veiculo) {
@@ -346,6 +388,7 @@ function ClienteDetalhe() {
     if (!window.confirm(`Tem certeza que deseja ${acao} o veículo ${veiculo.placa}?`)) return;
     await veiculosService.definirAtivo(veiculo.id, !veiculo.ativo);
     await carregarVeiculos();
+    mostrarSucesso(acao === 'inativar' ? 'Veículo inativado com sucesso.' : 'Veículo reativado com sucesso.');
   }
 
   async function abrirTransferencia(veiculo) {
@@ -382,7 +425,9 @@ function ClienteDetalhe() {
         </div>
       </div>
 
-      <ClienteInfoForm cliente={cliente} onAtualizado={setCliente} />
+      <MensagemSucesso mensagem={mensagemSucesso} />
+
+      <ClienteInfoForm cliente={cliente} onAtualizado={handleClienteAtualizado} />
 
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -405,8 +450,10 @@ function ClienteDetalhe() {
             veiculo={veiculoEmEdicao}
             onCancelar={() => setFormVeiculoAberto(false)}
             onSalvo={async () => {
+              const eraEdicao = Boolean(veiculoEmEdicao);
               setFormVeiculoAberto(false);
               await carregarVeiculos();
+              mostrarSucesso(eraEdicao ? 'Veículo atualizado com sucesso.' : 'Veículo cadastrado com sucesso.');
             }}
           />
         )}
@@ -481,6 +528,7 @@ function ClienteDetalhe() {
                           onTransferido={async () => {
                             setVeiculoTransferindo(null);
                             await carregarVeiculos();
+                            mostrarSucesso('Veículo transferido com sucesso.');
                           }}
                         />
                       </td>

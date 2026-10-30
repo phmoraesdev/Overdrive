@@ -3,16 +3,13 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/authContextBase.js';
 import * as ordensService from '../services/ordens';
 import * as pecasService from '../services/pecas';
-
-const ROTULO_STATUS = {
-  ABERTA: 'Aberta',
-  AGUARDANDO_APROVACAO: 'Aguardando aprovação',
-  REPROVADA: 'Reprovada',
-  EM_EXECUCAO: 'Em execução',
-  AGUARDANDO_PECA: 'Aguardando peça',
-  PRONTO_PARA_RETIRADA: 'Pronto para retirada',
-  ENCERRADA: 'Encerrada',
-};
+import { formatarReais, formatarData, formatarDataHora } from '../utils/formatacao';
+import { ROTULO_STATUS, COR_STATUS } from '../utils/statusOrdem';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import { useRascunho } from '../hooks/useRascunho';
+import MensagemSucesso from '../components/MensagemSucesso';
+import RascunhoAviso from '../components/RascunhoAviso';
+import Badge from '../components/Badge';
 
 const ROTULO_FORMA_PAGAMENTO = {
   DINHEIRO: 'Dinheiro',
@@ -27,32 +24,14 @@ const ROTULO_MEIO_CONTATO = {
   PRESENCIAL: 'Presencial',
 };
 
-function formatarReais(valor) {
-  return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
-}
-
-function formatarDataHora(data) {
-  return new Date(data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function Badge({ children, cor = 'slate' }) {
-  const cores = {
-    slate: 'bg-slate-200 text-slate-700',
-    amber: 'bg-amber-100 text-amber-800',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    red: 'bg-red-100 text-red-700',
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cores[cor]}`}>{children}</span>
-  );
-}
-
 function CabecalhoOS({ ordemServico }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">OS nº {ordemServico.numero}</h1>
-        <Badge cor="slate">{ROTULO_STATUS[ordemServico.status] ?? ordemServico.status}</Badge>
+        <Badge cor={COR_STATUS[ordemServico.status] ?? 'slate'}>
+          {ROTULO_STATUS[ordemServico.status] ?? ordemServico.status}
+        </Badge>
       </div>
       <div className="mt-2 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
         <p>
@@ -102,15 +81,56 @@ function ChecklistResumo({ checklist }) {
   );
 }
 
-function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
-  const [modo, setModo] = useState('PECA');
-  const [pecaId, setPecaId] = useState('');
-  const [descricao, setDescricao] = useState('');
-  const [quantidade, setQuantidade] = useState('1');
-  const [valorUnitario, setValorUnitario] = useState('');
+const ITEM_ORCAMENTO_INICIAL = {
+  modo: 'PECA',
+  pecaId: '',
+  descricao: '',
+  quantidade: '1',
+  valorUnitario: '',
+};
+
+function NovoItemOrcamentoForm({ ordemServicoId, numeroOS, pecas, onAdicionado }) {
+  const { rascunhoEncontrado, salvarRascunho, descartarRascunho } = useRascunho(
+    `overdrive:rascunho-orcamento-${numeroOS}`,
+  );
+  const [modo, setModo] = useState(() => rascunhoEncontrado?.modo ?? ITEM_ORCAMENTO_INICIAL.modo);
+  const [pecaId, setPecaId] = useState(() => rascunhoEncontrado?.pecaId ?? '');
+  const [descricao, setDescricao] = useState(() => rascunhoEncontrado?.descricao ?? '');
+  const [quantidade, setQuantidade] = useState(
+    () => rascunhoEncontrado?.quantidade ?? ITEM_ORCAMENTO_INICIAL.quantidade,
+  );
+  const [valorUnitario, setValorUnitario] = useState(() => rascunhoEncontrado?.valorUnitario ?? '');
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [enviando, setEnviando] = useState(false);
+
+  // Atualiza um campo e persiste o rascunho junto (RNF09) — só grava quando
+  // há algo digitado de fato, pra não encher o localStorage com o formulário
+  // em branco assim que a tela abre.
+  function atualizarCampo(patch) {
+    const novo = { modo, pecaId, descricao, quantidade, valorUnitario, ...patch };
+    setModo(novo.modo);
+    setPecaId(novo.pecaId);
+    setDescricao(novo.descricao);
+    setQuantidade(novo.quantidade);
+    setValorUnitario(novo.valorUnitario);
+    if (novo.pecaId || novo.descricao.trim() || novo.valorUnitario) {
+      salvarRascunho(novo);
+    }
+  }
+
+  function limparFormulario() {
+    setModo(ITEM_ORCAMENTO_INICIAL.modo);
+    setPecaId(ITEM_ORCAMENTO_INICIAL.pecaId);
+    setDescricao(ITEM_ORCAMENTO_INICIAL.descricao);
+    setQuantidade(ITEM_ORCAMENTO_INICIAL.quantidade);
+    setValorUnitario(ITEM_ORCAMENTO_INICIAL.valorUnitario);
+  }
+
+  function handleDescartarRascunho() {
+    descartarRascunho();
+    limparFormulario();
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -131,10 +151,8 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
       if (resultado.aviso) {
         setAviso(resultado.aviso.mensagem);
       }
-      setPecaId('');
-      setDescricao('');
-      setQuantidade('1');
-      setValorUnitario('');
+      limparFormulario();
+      descartarRascunho();
       await onAdicionado();
     } catch (error) {
       setErro(error.response?.data?.message ?? 'Não foi possível adicionar o item.');
@@ -145,17 +163,19 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-dashed border-slate-300 p-3">
+      {rascunhoEncontrado && <RascunhoAviso onDescartar={handleDescartarRascunho} />}
+
       <div className="flex gap-2 text-sm">
         <button
           type="button"
-          onClick={() => setModo('PECA')}
+          onClick={() => atualizarCampo({ modo: 'PECA' })}
           className={`rounded-md px-3 py-1 font-medium ${modo === 'PECA' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
         >
           Peça
         </button>
         <button
           type="button"
-          onClick={() => setModo('MAO_DE_OBRA')}
+          onClick={() => atualizarCampo({ modo: 'MAO_DE_OBRA' })}
           className={`rounded-md px-3 py-1 font-medium ${modo === 'MAO_DE_OBRA' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
         >
           Mão de obra
@@ -183,7 +203,7 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
               id="pecaId"
               required
               value={pecaId}
-              onChange={(event) => setPecaId(event.target.value)}
+              onChange={(event) => atualizarCampo({ pecaId: event.target.value })}
               className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">Selecione...</option>
@@ -204,7 +224,7 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
               id="descricaoMaoDeObra"
               required
               value={descricao}
-              onChange={(event) => setDescricao(event.target.value)}
+              onChange={(event) => atualizarCampo({ descricao: event.target.value })}
               className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
@@ -221,7 +241,7 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
             step="0.01"
             required
             value={quantidade}
-            onChange={(event) => setQuantidade(event.target.value)}
+            onChange={(event) => atualizarCampo({ quantidade: event.target.value })}
             className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
           />
         </div>
@@ -238,7 +258,7 @@ function NovoItemOrcamentoForm({ ordemServicoId, pecas, onAdicionado }) {
               step="0.01"
               required
               value={valorUnitario}
-              onChange={(event) => setValorUnitario(event.target.value)}
+              onChange={(event) => atualizarCampo({ valorUnitario: event.target.value })}
               className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
@@ -260,6 +280,7 @@ function OrcamentoSecao({ ordemServico, orcamento, podeEditar, onAtualizar }) {
   const [pecas, setPecas] = useState([]);
   const [erroFinalizar, setErroFinalizar] = useState('');
   const [finalizando, setFinalizando] = useState(false);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
   const editavel = podeEditar && ordemServico.status === 'ABERTA';
 
   useEffect(() => {
@@ -272,6 +293,7 @@ function OrcamentoSecao({ ordemServico, orcamento, podeEditar, onAtualizar }) {
     if (!window.confirm('Remover este item do orçamento?')) return;
     await ordensService.removerItemOrcamento(ordemServico.id, itemId);
     await onAtualizar();
+    mostrarSucesso('Item removido com sucesso.');
   }
 
   async function finalizar() {
@@ -280,6 +302,7 @@ function OrcamentoSecao({ ordemServico, orcamento, podeEditar, onAtualizar }) {
     try {
       await ordensService.finalizarOrcamento(ordemServico.id);
       await onAtualizar();
+      mostrarSucesso('Orçamento finalizado e enviado para aprovação.');
     } catch (error) {
       setErroFinalizar(error.response?.data?.message ?? 'Não foi possível finalizar o orçamento.');
     } finally {
@@ -291,49 +314,53 @@ function OrcamentoSecao({ ordemServico, orcamento, podeEditar, onAtualizar }) {
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
       <h2 className="font-medium text-slate-900">Orçamento</h2>
 
+      <MensagemSucesso mensagem={mensagemSucesso} />
+
       {orcamento.itens.length === 0 ? (
         <p className="text-sm text-slate-500">Nenhum item no orçamento ainda.</p>
       ) : (
-        <table className="min-w-full text-sm">
-          <thead className="text-left text-slate-600">
-            <tr>
-              <th className="py-1 pr-2">Item</th>
-              <th className="py-1 pr-2">Qtd</th>
-              <th className="py-1 pr-2">Valor un.</th>
-              <th className="py-1 pr-2">Total</th>
-              {ordemServico.status !== 'ABERTA' && <th className="py-1 pr-2">Aprovado</th>}
-              {editavel && <th className="py-1 pr-2" />}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {orcamento.itens.map((item) => (
-              <tr key={item.id}>
-                <td className="py-1 pr-2">{item.descricao}</td>
-                <td className="py-1 pr-2">{item.quantidade}</td>
-                <td className="py-1 pr-2">{formatarReais(item.valorUnitario)}</td>
-                <td className="py-1 pr-2 font-medium">{formatarReais(item.total)}</td>
-                {ordemServico.status !== 'ABERTA' && (
-                  <td className="py-1 pr-2">
-                    <Badge cor={item.aprovado ? 'emerald' : 'slate'}>
-                      {item.aprovado ? 'Sim' : 'Não'}
-                    </Badge>
-                  </td>
-                )}
-                {editavel && (
-                  <td className="py-1 pr-2">
-                    <button
-                      type="button"
-                      onClick={() => remover(item.id)}
-                      className="font-medium text-red-600 hover:underline"
-                    >
-                      Remover
-                    </button>
-                  </td>
-                )}
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-left text-slate-600">
+              <tr>
+                <th className="py-1 pr-2">Item</th>
+                <th className="py-1 pr-2">Qtd</th>
+                <th className="py-1 pr-2">Valor un.</th>
+                <th className="py-1 pr-2">Total</th>
+                {ordemServico.status !== 'ABERTA' && <th className="py-1 pr-2">Aprovado</th>}
+                {editavel && <th className="py-1 pr-2" />}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {orcamento.itens.map((item) => (
+                <tr key={item.id}>
+                  <td className="py-1 pr-2">{item.descricao}</td>
+                  <td className="py-1 pr-2">{item.quantidade}</td>
+                  <td className="py-1 pr-2">{formatarReais(item.valorUnitario)}</td>
+                  <td className="py-1 pr-2 font-medium">{formatarReais(item.total)}</td>
+                  {ordemServico.status !== 'ABERTA' && (
+                    <td className="py-1 pr-2">
+                      <Badge cor={item.aprovado ? 'emerald' : 'slate'}>
+                        {item.aprovado ? 'Sim' : 'Não'}
+                      </Badge>
+                    </td>
+                  )}
+                  {editavel && (
+                    <td className="py-1 pr-2">
+                      <button
+                        type="button"
+                        onClick={() => remover(item.id)}
+                        className="font-medium text-red-600 hover:underline"
+                      >
+                        Remover
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <p className="text-right font-semibold text-slate-900">Total: {formatarReais(orcamento.total)}</p>
@@ -342,8 +369,12 @@ function OrcamentoSecao({ ordemServico, orcamento, podeEditar, onAtualizar }) {
         <>
           <NovoItemOrcamentoForm
             ordemServicoId={ordemServico.id}
+            numeroOS={ordemServico.numero}
             pecas={pecas}
-            onAdicionado={onAtualizar}
+            onAdicionado={async () => {
+              await onAtualizar();
+              mostrarSucesso('Item adicionado com sucesso.');
+            }}
           />
           {erroFinalizar && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -371,6 +402,7 @@ function DecisaoSecao({ ordemServico, podeDecidir, onAtualizar }) {
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   function alternarItem(itemId) {
     setItensSelecionados((atual) =>
@@ -390,6 +422,7 @@ function DecisaoSecao({ ordemServico, podeDecidir, onAtualizar }) {
         itensAprovadosIds: decisao === 'APROVADO_PARCIAL' ? itensSelecionados : undefined,
       });
       await onAtualizar();
+      mostrarSucesso('Decisão registrada com sucesso.');
     } catch (error) {
       setErro(error.response?.data?.message ?? 'Não foi possível registrar a decisão.');
     } finally {
@@ -401,6 +434,7 @@ function DecisaoSecao({ ordemServico, podeDecidir, onAtualizar }) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
         <h2 className="font-medium text-slate-900">Decisão do orçamento</h2>
+        <MensagemSucesso mensagem={mensagemSucesso} />
         <p className="mt-1">
           {ordemServico.decisaoOrcamento === 'APROVADO' && 'Aprovado integralmente'}
           {ordemServico.decisaoOrcamento === 'APROVADO_PARCIAL' && 'Aprovado parcialmente'}
@@ -424,6 +458,7 @@ function DecisaoSecao({ ordemServico, podeDecidir, onAtualizar }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
       <h2 className="font-medium text-slate-900">Decisão do cliente sobre o orçamento</h2>
+      <MensagemSucesso mensagem={mensagemSucesso} />
       {erro && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {erro}
@@ -519,6 +554,7 @@ function StatusSecao({ ordemServico, podeAtualizar, onAtualizar }) {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [alertaRecepcao, setAlertaRecepcao] = useState(false);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
   const transicoes = TRANSICOES_POR_STATUS[ordemServico.status] ?? [];
 
   if (!podeAtualizar || transicoes.length === 0) return null;
@@ -530,6 +566,7 @@ function StatusSecao({ ordemServico, podeAtualizar, onAtualizar }) {
       const resultado = await ordensService.atualizarStatus(ordemServico.id, novoStatus);
       setAlertaRecepcao(Boolean(resultado.alertaRecepcao));
       await onAtualizar();
+      mostrarSucesso('Status atualizado com sucesso.');
     } catch (error) {
       setErro(error.response?.data?.message ?? 'Não foi possível atualizar o status.');
     } finally {
@@ -540,6 +577,7 @@ function StatusSecao({ ordemServico, podeAtualizar, onAtualizar }) {
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4">
       <h2 className="font-medium text-slate-900">Status da OS</h2>
+      <MensagemSucesso mensagem={mensagemSucesso} />
       {erro && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {erro}
@@ -651,7 +689,7 @@ function EncerramentoSecao({ ordemServico, podeEncerrar, onAtualizar }) {
             {conta.parcelas.map((parcela) => (
               <li key={parcela.id}>
                 Parcela {parcela.numero}: {formatarReais(parcela.valor)} — vence em{' '}
-                {new Date(parcela.vencimento).toLocaleDateString('pt-BR')}
+                {formatarData(parcela.vencimento)}
               </li>
             ))}
           </ul>

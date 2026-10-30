@@ -2,6 +2,11 @@ import { Fragment, useEffect, useState } from 'react';
 import * as agendaService from '../services/agenda';
 import * as clientesService from '../services/clientes';
 import * as veiculosService from '../services/veiculos';
+import { formatarDataHora, formatarHorario } from '../utils/formatacao';
+import { erroDataPassada } from '../utils/validadores';
+import { useMensagemSucesso } from '../hooks/useMensagemSucesso';
+import MensagemSucesso from '../components/MensagemSucesso';
+import ErroCampo from '../components/ErroCampo';
 
 function hojeISO() {
   const hoje = new Date();
@@ -17,14 +22,6 @@ function somarDias(dataISO, quantidade) {
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(
     data.getDate(),
   ).padStart(2, '0')}`;
-}
-
-function formatarHorario(dataHora) {
-  return new Date(dataHora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatarDataHora(dataHora) {
-  return new Date(dataHora).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 const ROTULO_STATUS = {
@@ -64,6 +61,7 @@ function NovoAgendamentoForm({ dataSelecionada, clientes, onCriado }) {
   const [erro, setErro] = useState('');
   const [sugestoes, setSugestoes] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const erroData = erroDataPassada(dataSelecionada);
 
   function handleClienteChange(novoClienteId) {
     setClienteId(novoClienteId);
@@ -102,7 +100,7 @@ function NovoAgendamentoForm({ dataSelecionada, clientes, onCriado }) {
 
   function handleSubmit(event) {
     event.preventDefault();
-    if (!clienteId || !hora) return;
+    if (!clienteId || !hora || erroData) return;
     criar(`${dataSelecionada}T${hora}:00`);
   }
 
@@ -126,10 +124,12 @@ function NovoAgendamentoForm({ dataSelecionada, clientes, onCriado }) {
             id="horaAgendamento"
             type="time"
             required
+            aria-describedby={erroData ? 'erro-data-agendamento' : undefined}
             value={hora}
             onChange={(event) => setHora(event.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+          <ErroCampo id="erro-data-agendamento" mensagem={erroData} />
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-slate-700" htmlFor="clienteAgendamento">
@@ -192,7 +192,7 @@ function NovoAgendamentoForm({ dataSelecionada, clientes, onCriado }) {
 
       <button
         type="submit"
-        disabled={enviando}
+        disabled={enviando || Boolean(erroData)}
         className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
       >
         {enviando ? 'Agendando...' : 'Agendar'}
@@ -212,6 +212,7 @@ function ReagendarForm({ agendamento, onCancelar, onReagendado }) {
   const [erro, setErro] = useState('');
   const [sugestoes, setSugestoes] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const erroData = erroDataPassada(data);
 
   async function reagendar(dataHoraISO) {
     setErro('');
@@ -233,6 +234,7 @@ function ReagendarForm({ agendamento, onCancelar, onReagendado }) {
   }
 
   function handleConfirmar() {
+    if (erroData) return;
     reagendar(`${data}T${hora}:00`);
   }
 
@@ -247,10 +249,12 @@ function ReagendarForm({ agendamento, onCancelar, onReagendado }) {
           <input
             id={`data-${agendamento.id}`}
             type="date"
+            aria-describedby={erroData ? `erro-data-reagendar-${agendamento.id}` : undefined}
             value={data}
             onChange={(event) => setData(event.target.value)}
             className="mt-1 rounded-md border border-slate-300 px-2 py-1"
           />
+          <ErroCampo id={`erro-data-reagendar-${agendamento.id}`} mensagem={erroData} />
         </div>
         <div>
           <label className="block text-xs text-slate-500" htmlFor={`hora-${agendamento.id}`}>
@@ -266,7 +270,7 @@ function ReagendarForm({ agendamento, onCancelar, onReagendado }) {
         </div>
         <button
           type="button"
-          disabled={enviando}
+          disabled={enviando || Boolean(erroData)}
           onClick={handleConfirmar}
           className="rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white disabled:opacity-50"
         >
@@ -299,6 +303,7 @@ function Agenda() {
   const [clientes, setClientes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [reagendandoId, setReagendandoId] = useState(null);
+  const [mensagemSucesso, mostrarSucesso] = useMensagemSucesso();
 
   async function carregarDia() {
     const dados = await agendaService.listarPorDia(dataSelecionada);
@@ -323,6 +328,7 @@ function Agenda() {
     }
     await agendaService.cancelar(agendamento.id);
     await carregarDia();
+    mostrarSucesso('Agendamento cancelado com sucesso.');
   }
 
   return (
@@ -360,10 +366,15 @@ function Agenda() {
         </div>
       </div>
 
+      <MensagemSucesso mensagem={mensagemSucesso} />
+
       <NovoAgendamentoForm
         dataSelecionada={dataSelecionada}
         clientes={clientes}
-        onCriado={carregarDia}
+        onCriado={async () => {
+          await carregarDia();
+          mostrarSucesso('Agendamento criado com sucesso.');
+        }}
       />
 
       {carregando ? (
@@ -426,6 +437,7 @@ function Agenda() {
                           onReagendado={async () => {
                             setReagendandoId(null);
                             await carregarDia();
+                            mostrarSucesso('Agendamento reagendado com sucesso.');
                           }}
                         />
                       </td>
